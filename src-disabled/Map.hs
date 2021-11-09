@@ -1,6 +1,6 @@
 module Medlib.Map where
 
-import           Medlib.Utils.Files
+import           Medlib.Util.File
 
 import           Control.Monad.Reader
 import           Control.Monad.State
@@ -172,6 +172,47 @@ processor (libRoot, libDestRoot) (fpD, fpF)
      in ((action, Just fpD), ResourceBoundIO)
   where
     fp = fpD </> fpF
+
+{-
+
+-- | Transcode track to Ogg Vorbis using FFmpeg. If there is a file already
+--   present, check if it stores a tagged hash of the original file it was
+--   transcoded from. If present, skip, else fail.
+actionFFmpegOggTranscodeWithHashCheck
+    :: (FilePathD, FilePathD) -> (FilePathD, FilePathF)
+    -> ((Action, Maybe FilePathD), ResourceBound)
+actionFFmpegOggTranscodeWithHashCheck (libRoot, libDestRoot) (fpD, fpF) =
+  where
+    action = ActionIO $ do
+        getFile fpDest >>= \case
+          Just fh -> -- do sth with file handler
+          Nothing -> -- run regular ffmpeg stuff
+            readProcessStdout $ proc "ffmpeg" 
+            runProcess (nullStdStreams (proc "ffmpeg" args)) >>= \case
+              ExitSuccess   -> return ()
+              ExitFailure c ->
+                putStrLn $ "medlib: error: shell command failed with code " <> show c <> ": " <> cmd <> List.intercalate " " args
+
+            ActionShell "ffmpeg"
+              [ "-n"
+              , "-i", libRoot </> fp
+              , "-vn"
+              , "-q:a", "5"
+              , libDestRoot </> (fpD </> replaceExtension fpF ".ogg")
+              ]
+    fp = fpD </> fpF
+    fpSrc = libRoot </> fp
+    fpDest = libDestRoot </> fp
+    ffmpegCmdArgs =
+      [ "-n"
+      , "-i", fpSrc
+      , "-vn"
+      , "-q:a", "5"
+      , libDestRoot </> (fpD </> replaceExtension fpF ".ogg")
+      , 
+      ]
+
+-}
 
 -- | Thread that should run for any action. Will create directories as required,
 --   using a map shared across all action workers.

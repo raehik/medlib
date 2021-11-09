@@ -12,9 +12,8 @@ extra-source-files:
 
 library
   exposed-modules:
-      Medlib.Map
-      Medlib.Map.Internal
-      Medlib.Utils.Files
+      Medlib.Action
+      Medlib.Util.File
   other-modules:
       Paths_medlib
   hs-source-dirs:
@@ -47,7 +46,11 @@ library
     , containers
     , directory
     , filepath
+    , generic-optics
+    , lens
     , mtl
+    , optics
+    , path
     , stm
     , stm-chans
     , streaming
@@ -89,8 +92,12 @@ executable medlib
     , containers
     , directory
     , filepath
+    , generic-optics
+    , lens
     , medlib
     , mtl
+    , optics
+    , path
     , stm
     , stm-chans
     , streaming

@@ -30,6 +30,7 @@ default-extensions:
 dependencies:
 - base
 - mtl
+- lens
 - stm
 - stm-chans
 - async
@@ -40,6 +41,9 @@ dependencies:
 - typed-process
 - streaming
 - concurrent-output
+- path
+- optics
+- generic-optics
 
 ghc-options:
 - -Wall
