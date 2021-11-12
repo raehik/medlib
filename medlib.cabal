@@ -13,6 +13,7 @@ extra-source-files:
 library
   exposed-modules:
       Medlib.Action
+      Medlib.Map.Status
       Medlib.Util.File
       Medlib.Util.FileProcess
       Medlib.Util.Process

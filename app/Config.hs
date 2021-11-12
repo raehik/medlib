@@ -6,8 +6,20 @@ data Command
   = CmdMakePortable CCmdMakePortable
     deriving (Eq, Show)
 
-data CCmdMakePortable = CCmdMakePortable CTraverser CScheduler CTranscoder CFFmpeg CHasher CConcurrentLogger
-    deriving (Eq, Show, Generic)
+data CCmdMakePortable = CCmdMakePortable
+  { cCmdMakePortableCTraverser :: CTraverser
+  , cCmdMakePortableCScheduler :: CScheduler
+  , cCmdMakePortableCTranscoder :: CTranscoder
+  , cCmdMakePortableCFFmpeg :: CFFmpeg
+  , cCmdMakePortableCHasher :: CHasher
+  , cCmdMakePortableCConcurrentLogger :: CConcurrentLogger
+  , cCmdMakePortableCLibrarySrc :: CLibrary
+  , cCmdMakePortableCLibraryDest :: CLibrary
+  } deriving (Eq, Show, Generic)
+
+data CLibrary = CLibrary
+  { cLibraryRoot :: String
+  } deriving (Eq, Show)
 
 data CTraverser = CTraverser
   { cTraverserSkipDirs :: [String]

@@ -117,7 +117,7 @@ delegator roots tvDestDirs logAction s = do
             q = case rb of
                   ResourceBoundCPU -> qpCPU
                   ResourceBoundIO  -> qpIO
-        -- TODO: The order of this two lines is critical -- cool!
+        -- TODO: The order of these two lines is critical -- cool!
         liftIO $ logAction $ LogMsgUpdateCounter rb PoolCounterAssigned
         liftIO $ atomically $ writeTMQueue q action
 

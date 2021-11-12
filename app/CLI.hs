@@ -22,6 +22,14 @@ pCCmdMakePortable = CCmdMakePortable <$> pCTraverser
                                      <*> pCFFmpeg
                                      <*> pCHasher
                                      <*> pCConcurrentLogger
+                                     <*> pCLibrary
+                                     <*> pCLibrary' "dest"
+
+pCLibrary :: Parser CLibrary
+pCLibrary = CLibrary <$> option str (long ("library") <> help "library root")
+
+pCLibrary' :: String -> Parser CLibrary
+pCLibrary' tag = CLibrary <$> option str (long (tag<>"-library") <> help (tag<>" library root"))
 
 pCTraverser :: Parser CTraverser
 pCTraverser = CTraverser <$> many (option str (long "skip-dir"))
