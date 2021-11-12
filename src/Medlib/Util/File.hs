@@ -15,6 +15,9 @@ import qualified Streaming.Prelude      as S
 import           Streaming.Prelude      ( Stream, Of )
 import qualified Data.List              as List
 
+type FPF = FilePath
+type FPD = FilePath
+
 type FilePathF = FilePath -- | rel/abs path to file
 type FilePathD = FilePath -- | rel/abs path to file
 type FileNameD = FilePath -- | dir filename (segment)

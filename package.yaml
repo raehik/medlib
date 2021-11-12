@@ -29,6 +29,7 @@ default-extensions:
 
 dependencies:
 - base
+- bytestring
 - mtl
 - lens
 - stm
@@ -44,6 +45,7 @@ dependencies:
 - path
 - optics
 - generic-optics
+- reflection
 
 ghc-options:
 - -Wall
