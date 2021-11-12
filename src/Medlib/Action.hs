@@ -23,15 +23,6 @@ data FFmpegCfg = FFmpegCfg
   , ffmpegCfgQuality     :: String
   }
 
-ffmpegB3 :: String -> String -> String -> String -> FFmpegCfg
-ffmpegB3 b3sumExe ffprobeExe ffmpegExe qual = FFmpegCfg
-  { ffmpegCfgHashTagName = "MedlibOriginalHashBlake3"
-  , ffmpegCfgHashFile    = hashFile
-  , ffmpegCfgFFprobe     = ffprobeExe
-  , ffmpegCfgFFmpeg      = ffmpegExe
-  , ffmpegCfgQuality     = qual
-  } where hashFile fp = fmap (fst . head) <$> hashFiles b3sumExe [fp]
-
 -- | Given the filename of a track, and the filename of a track generated from
 --   that track, check that the hash stored inside the generated track equals
 --   the hash of the original track.

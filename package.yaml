@@ -64,3 +64,4 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - medlib
+    - optparse-applicative

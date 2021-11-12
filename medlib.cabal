@@ -66,6 +66,8 @@ library
 executable medlib
   main-is: Main.hs
   other-modules:
+      CLI
+      Config
       Paths_medlib
   hs-source-dirs:
       app
@@ -103,6 +105,7 @@ executable medlib
     , medlib
     , mtl
     , optics
+    , optparse-applicative
     , path
     , reflection
     , stm
