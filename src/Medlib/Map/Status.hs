@@ -17,9 +17,14 @@ import           Optics
 import           Data.Generics.Product.Any
 
 data LibraryMapStatus = LibraryMapStatus
-  { lmsFullyTraversed :: Bool
+  { fullyTraversed :: Bool
   , pools :: Map Pool WorkerPoolStatus
   } deriving (Eq, Show, Generic)
+
+statusDef :: LibraryMapStatus
+statusDef = LibraryMapStatus
+  { fullyTraversed = False
+  , pools = Map.empty }
 
 data WorkerPoolStatus = WorkerPoolStatus
   { scheduledJobs :: Int
@@ -85,7 +90,7 @@ showLibraryMapStatusPerJob s =
     displayCounter ps =
         show (wpsProcessedJobs ps)
         <> "/"
-        <> if lmsFullyTraversed s then show (scheduledJobs ps) else "?"
+        <> if fullyTraversed s then show (scheduledJobs ps) else "?"
 
 --------------------------------------------------------------------------------
 
@@ -102,7 +107,7 @@ data PoolUpdate
 
 processMsg :: LibraryMapStatus -> Msg -> LibraryMapStatus
 processMsg lms = \case
-  MsgFullyTraversed  -> lms { lmsFullyTraversed = True }
+  MsgFullyTraversed  -> set (the @"fullyTraversed") True lms
   MsgPoolUpdate p pu ->
     case pu of
       PoolUpdateClosed -> updatePoolInStatus p $ set (the @"closed") True
@@ -114,14 +119,15 @@ processMsg lms = \case
     tryUpdatePoolInner p f = Map.insertWith (\_ p' -> f p') p (f poolStatusDef)
     poolStatusDef = WorkerPoolStatus 0 0 False Map.empty
 
-statusIndicatesFinished :: LibraryMapStatus -> Bool
-statusIndicatesFinished lms = Map.foldr (\a b -> b && closed a) True (pools lms)
+-- We check for pools reporting finished, and fully traversed.
+indicatesFinished :: LibraryMapStatus -> Bool
+indicatesFinished lms = Map.foldr (\a b -> b && closed a) (fullyTraversed lms) (pools lms)
 
 --------------------------------------------------------------------------------
 
 libMapStatusExample :: LibraryMapStatus
 libMapStatusExample = LibraryMapStatus
-  { lmsFullyTraversed = True
+  { fullyTraversed = True
   , pools = Map.fromList
       [ (PoolIO,  WorkerPoolStatus 50 35 False ioWorkers)
       , (PoolCPU, WorkerPoolStatus 3  2  False cpuWorkers) ]

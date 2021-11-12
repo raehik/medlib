@@ -14,10 +14,10 @@ library
   exposed-modules:
       Medlib.Action
       Medlib.Map.Status
+      Medlib.Map.Thread
       Medlib.Util.File
       Medlib.Util.FileProcess
       Medlib.Util.Process
-      Testing
   other-modules:
       Paths_medlib
   hs-source-dirs:
