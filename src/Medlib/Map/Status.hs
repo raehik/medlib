@@ -120,6 +120,7 @@ processMsg lms = \case
     poolStatusDef = WorkerPoolStatus 0 0 False Map.empty
 
 -- We check for pools reporting finished, and fully traversed.
+-- TODO inefficient?
 indicatesFinished :: LibraryMapStatus -> Bool
 indicatesFinished lms = Map.foldr (\a b -> b && closed a) (fullyTraversed lms) (pools lms)
 

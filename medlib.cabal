@@ -12,9 +12,8 @@ extra-source-files:
 
 library
   exposed-modules:
-      Medlib.Action
+      Medlib.Action.FFmpeg
       Medlib.Map.Status
-      Medlib.Map.Thread
       Medlib.Util.File
       Medlib.Util.FileProcess
       Medlib.Util.Process
@@ -50,6 +49,7 @@ library
     , concurrent-output
     , containers
     , directory
+    , either
     , filepath
     , generic-optics
     , lens
@@ -62,13 +62,16 @@ library
     , streaming
     , text
     , typed-process
+    , unliftio
   default-language: Haskell2010
 
 executable medlib
   main-is: Main.hs
   other-modules:
       CLI
+      CLI2
       Config
+      Thread
       Paths_medlib
   hs-source-dirs:
       app
@@ -100,6 +103,7 @@ executable medlib
     , concurrent-output
     , containers
     , directory
+    , either
     , filepath
     , generic-optics
     , lens
@@ -114,4 +118,5 @@ executable medlib
     , streaming
     , text
     , typed-process
+    , unliftio
   default-language: Haskell2010

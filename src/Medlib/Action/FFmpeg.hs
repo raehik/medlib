@@ -1,8 +1,4 @@
-{- TODO
-* Text better than String for textual comparisons? Probs tbh.
--}
-
-module Medlib.Action where
+module Medlib.Action.FFmpeg where
 
 import           Medlib.Util.Process
 import           Medlib.Util.FileProcess
@@ -17,7 +13,7 @@ type FPD = FilePath
 
 data FFmpegCfg = FFmpegCfg
   { ffmpegCfgHashTagName :: String
-  , ffmpegCfgHashFile    :: FPF -> IO (Either Int Text)
+  , ffmpegCfgHasher      :: String
   , ffmpegCfgFFprobe     :: String
   , ffmpegCfgFFmpeg      :: String
   , ffmpegCfgQuality     :: String
@@ -32,21 +28,12 @@ compareTrackStoredHash cfg fOrigTrack fGenTrack = do
     ffprobeGetTag (ffmpegCfgFFprobe cfg) (ffmpegCfgHashTagName cfg) fGenTrack >>= \case
       Left ec -> err ec "getting stored hash"
       Right storedHash -> do
-        (liftIO $ ffmpegCfgHashFile cfg fOrigTrack) >>= \case
+        hashFile (ffmpegCfgHasher cfg) fOrigTrack >>= \case
           Left ec -> err ec "hashing original track"
           Right originalHash -> return $ Right $ storedHash == originalHash
   where
     err ec attemptedAction =
         return $ Left $ "error code " <> show ec <> " while " <> attemptedAction
-
-compareFileHashes
-    :: MonadIO m => FPF -> [FPF] -> m (Either String Bool)
-compareFileHashes hasher fs = hashFiles hasher fs >>= \case
-  Left ec -> return $ Left $ "error code " <> show ec <> " while hashing filelist"
-  Right hashes ->
-    case hashes of
-      []   -> return $ Right True
-      h:hs -> return $ Right $ all (== snd h) (map snd hs)
 
 -- | Read the given tag from a music file using ffprobe.
 --
@@ -59,7 +46,7 @@ ffprobeGetTag ffprobeExe tagName fp = fmap (head . Text.words) <$> readProcToTex
 
 hashAndTranscode :: MonadIO m => FFmpegCfg -> FPF -> FPF -> m (Maybe String)
 hashAndTranscode cfg fIn fOut = do
-    (liftIO $ ffmpegCfgHashFile cfg fIn) >>= \case
+    hashFile (ffmpegCfgHasher cfg) fIn >>= \case
       Left ec -> err ec "hashing original track"
       Right originalHash -> do
         runProcessSilent (ffmpegCfgFFmpeg cfg) (ffmpegArgs (Text.unpack originalHash)) >>= \case

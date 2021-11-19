@@ -46,6 +46,8 @@ dependencies:
 - optics
 - generic-optics
 - reflection
+- either
+- unliftio
 
 ghc-options:
 - -Wall
