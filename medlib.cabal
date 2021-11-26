@@ -12,7 +12,9 @@ extra-source-files:
 
 library
   exposed-modules:
+      FP
       Medlib.Action.FFmpeg
+      Medlib.Map
       Medlib.Map.Status
       Medlib.Util.File
       Medlib.Util.FileProcess
@@ -72,6 +74,7 @@ executable medlib
       CLI2
       Config
       Thread
+      Util
       Paths_medlib
   hs-source-dirs:
       app

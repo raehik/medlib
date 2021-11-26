@@ -1,12 +1,20 @@
 {-
-Data and functions for tracking library mapping status, and printing it out.
+Functions over the library map operation status: mutating, printing, checking.
 
-Pool closure isn't very safe. But it seems a smart approach.
+To allow clean thread programming, all operation state is thrust towards a
+single thread that tracks it in a single place, and can handle displaying
+various information. It also means we don't get much safety from type
+guarantees, so we have to model the system with care.
+
+In particular, pool closure isn't maybe not very safe. But it seems a smart
+approach?
 -}
 
 {-# LANGUAGE DataKinds #-}
 
 module Medlib.Map.Status where
+
+import           Medlib.Map
 
 import           GHC.Generics
 import           Data.Function
@@ -16,126 +24,85 @@ import qualified Data.List      as List
 import           Optics
 import           Data.Generics.Product.Any
 
-data LibraryMapStatus = LibraryMapStatus
-  { fullyTraversed :: Bool
-  , pools :: Map Pool WorkerPoolStatus
-  } deriving (Eq, Show, Generic)
+statusDef :: Status
+statusDef = Status { fullyTraversed = False, pools = Map.empty }
 
-statusDef :: LibraryMapStatus
-statusDef = LibraryMapStatus
-  { fullyTraversed = False
-  , pools = Map.empty }
+opVerbing :: Op -> String
+opVerbing = \case
+  OpTranscode         -> "transcoding"
+  OpCompareStoredHash -> "checking transcoded stored hash"
+  OpCopy              -> "copying"
+  OpCompareHashes     -> "checking hashes"
 
-data WorkerPoolStatus = WorkerPoolStatus
-  { scheduledJobs :: Int
-  , wpsProcessedJobs :: Int
-  , closed           :: Bool
-  , workers :: Map Int WorkerStatus
-  } deriving (Eq, Show, Generic, Ord)
+opID :: Op -> Char
+opID = \case
+  OpTranscode         -> 'T'
+  OpCompareStoredHash -> 'H'
+  OpCopy              -> 'C'
+  OpCompareHashes     -> 'H'
 
-data WorkerStatus
-  = WorkerBusy String LibraryFileOp
-  | WorkerIdle
-    deriving (Eq, Show, Generic, Ord)
-
-data LibraryFileOp
-  = LFOTranscode
-  | LFOCompareStoredHash
-  | LFOCopy
-  | LFOCompareHashes
-    deriving (Eq, Show, Generic, Ord)
-
-lfoVerbing :: LibraryFileOp -> String
-lfoVerbing = \case
-  LFOTranscode         -> "transcoding"
-  LFOCompareStoredHash -> "checking transcoded stored hash"
-  LFOCopy              -> "copying"
-  LFOCompareHashes     -> "checking hashes"
-
-lfoID :: LibraryFileOp -> Char
-lfoID = \case
-  LFOTranscode         -> 'T'
-  LFOCompareStoredHash -> 'H'
-  LFOCopy              -> 'C'
-  LFOCompareHashes     -> 'H'
-
-data Pool
-  = PoolCPU
-  | PoolIO
-    deriving (Eq, Show, Generic, Ord)
-
-poolLabel :: Pool -> String
+poolLabel :: ResourceBound -> String
 poolLabel = \case
-  PoolCPU -> "CPU"
-  PoolIO  -> "IO "
+  ResourceBoundCPU -> "CPU"
+  ResourceBoundIO -> "IO "
 
 -- TODO explicit CPU/IO ordering please
-showLibraryMapStatusPerJob :: LibraryMapStatus -> String
-showLibraryMapStatusPerJob s =
-    unlines poolWorkerListDisplay <> "\n" <> unlines poolJobCounts
+showStatusEachSlot :: Status -> String
+showStatusEachSlot s =
+    unlines poolSlotListDisplay <> "\n" <> unlines poolJobCounts
   where
-    poolWorkerListDisplay =
+    poolSlotListDisplay =
         pools s
             & Map.toList
-            & map (\(p, wps) -> displayWorkers p (workers wps))
+            & map (\(p, ps) -> displaySlots p (slots ps))
             & concat
-    displayWorkers p wsm = Map.toList wsm & map (displayWorker p)
-    displayWorker p (workerId, ws) = List.intercalate " | " $
-        poolLabel p <> " " <> show workerId : displayWorkerPart ws
-    displayWorkerPart = \case
-      WorkerIdle -> ["[nothing to do]"]
-      WorkerBusy fp op -> [fp, lfoVerbing op]
+    displaySlots p ssm = Map.toList ssm & map (displaySlot p)
+    displaySlot p (slotId, ss) =
+        let lhs = poolLabel p <> " " <> show slotId
+         in List.intercalate " | " (lhs : displaySlotPart ss)
+    displaySlotPart = \case
+      SlotIdle -> ["[nothing to do]"]
+      SlotBusy fp op -> [fp, opVerbing op]
     poolJobCounts = map poolJobCount $ Map.toList $ pools s
     poolJobCount (p, ps) = poolLabel p <> " " <> displayCounter ps
     displayCounter ps =
-        show (wpsProcessedJobs ps)
+        show (completedJobs ps)
         <> "/"
         <> if fullyTraversed s then show (scheduledJobs ps) else "?"
 
 --------------------------------------------------------------------------------
 
-data Msg
-  = MsgFullyTraversed
-  | MsgPoolUpdate Pool PoolUpdate
-    deriving (Eq, Show)
-
-data PoolUpdate
-  = PoolUpdateQueued
-  | PoolUpdateWorker Int WorkerStatus
-  | PoolUpdateClosed
-    deriving (Eq, Show)
-
-processMsg :: LibraryMapStatus -> Msg -> LibraryMapStatus
-processMsg lms = \case
-  MsgFullyTraversed  -> set (the @"fullyTraversed") True lms
-  MsgPoolUpdate p pu ->
+processUpdate :: Status -> Update -> Status
+processUpdate s = \case
+  UpdateFullyTraversed  -> set (the @"fullyTraversed") True s
+  UpdatePool p pu ->
     case pu of
       PoolUpdateClosed -> updatePoolInStatus p $ set (the @"closed") True
       PoolUpdateQueued -> updatePoolInStatus p $ over (the @"scheduledJobs") (+1)
-      PoolUpdateWorker workerId ws ->
-        updatePoolInStatus p $ over (the @"workers") $ Map.insert workerId ws
+      PoolUpdateSlot slotId ss ->
+        updatePoolInStatus p $ over (the @"slots") $ Map.insert slotId ss
   where
-    updatePoolInStatus p f = over (the @"pools") (tryUpdatePoolInner p f) lms
+    updatePoolInStatus p f = over (the @"pools") (tryUpdatePoolInner p f) s
     tryUpdatePoolInner p f = Map.insertWith (\_ p' -> f p') p (f poolStatusDef)
-    poolStatusDef = WorkerPoolStatus 0 0 False Map.empty
+    poolStatusDef = PoolStatus 0 0 False Map.empty
 
 -- We check for pools reporting finished, and fully traversed.
 -- TODO inefficient?
-indicatesFinished :: LibraryMapStatus -> Bool
-indicatesFinished lms = Map.foldr (\a b -> b && closed a) (fullyTraversed lms) (pools lms)
+indicatesFinished :: Status -> Bool
+indicatesFinished s = Map.foldr (\a b -> b && closed a) (fullyTraversed s) (pools s)
 
 --------------------------------------------------------------------------------
 
-libMapStatusExample :: LibraryMapStatus
-libMapStatusExample = LibraryMapStatus
+exampleStatus :: Status
+exampleStatus = Status
   { fullyTraversed = True
   , pools = Map.fromList
-      [ (PoolIO,  WorkerPoolStatus 50 35 False ioWorkers)
-      , (PoolCPU, WorkerPoolStatus 3  2  False cpuWorkers) ]
+      [ (ResourceBoundIO,  PoolStatus 50 35 False ioSlots)
+      , (ResourceBoundCPU, PoolStatus 3  2  False cpuSlots) ]
   } where
-    ioWorkers = Map.fromList
-      [ (1, WorkerBusy "vocaloid/gizen-seigi.mp3"         LFOCompareHashes)
-      , (2, WorkerBusy "bill-wurtz/more-than-a-dream.mp3" LFOCopy) ]
-    cpuWorkers = Map.fromList
-      [ (1, WorkerBusy "toby-fox/banger.flac" LFOTranscode)
-      , (2, WorkerIdle) ]
+    ioSlots = Map.fromList
+      [ (1, SlotBusy "vocaloid/gizen-seigi.mp3"         OpCompareHashes)
+      , (2, SlotBusy "bill-wurtz/more-than-a-dream.mp3" OpCopy) ]
+    cpuSlots = Map.fromList
+      [ (1, SlotBusy "toby-fox/banger.flac" OpTranscode)
+      , (2, SlotIdle) ]

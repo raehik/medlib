@@ -2,30 +2,19 @@ module Main where
 
 import qualified CLI as CLI
 import           Config
+import           Util
 import qualified Thread                  as Thread
 
-import qualified Medlib.Action.FFmpeg    as Action
-import qualified Medlib.Util.FileProcess as FileProcess
 import qualified Medlib.Util.File        as File
 
 import           Optics
 import           Data.Generics.Product.Any
 import           Control.Monad.IO.Class
 import           Control.Concurrent.Async
-import           Control.Monad.STM
 import           Control.Concurrent.STM.TQueue
 import           Control.Concurrent.STM.TMQueue
 import qualified Streaming.Prelude              as S
 import           Streaming.Prelude              ( Stream, Of )
-
-aFFmpegCfg :: CFFmpeg -> CHasher -> Action.FFmpegCfg
-aFFmpegCfg cFFmpeg cHasher = Action.FFmpegCfg
-  { Action.ffmpegCfgHashTagName = cFFmpegHashTag cFFmpeg
-  , Action.ffmpegCfgHasher      = cHasherExe     cHasher
-  , Action.ffmpegCfgFFprobe     = cFFmpegFFprobe cFFmpeg
-  , Action.ffmpegCfgFFmpeg      = cFFmpegFFmpeg  cFFmpeg
-  , Action.ffmpegCfgQuality     = cFFmpegQuality cFFmpeg
-  }
 
 main :: IO ()
 main = CLI.parseOpts >>= \case
@@ -53,6 +42,5 @@ runCmdMakePortable cfg = do
 -- | Consume a 'Stream' to a 'TMQueue' and close the queue once finished.
 streamToTMQueue :: MonadIO m => Stream (Of a) m () -> TMQueue a -> m ()
 streamToTMQueue s q = do
-    S.mapM_ (stmOp . writeTMQueue q) s
-    stmOp $ closeTMQueue q
-  where stmOp = liftIO . atomically
+    S.mapM_ (stm . writeTMQueue q) s
+    stm $ closeTMQueue q
