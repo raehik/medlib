@@ -1,8 +1,12 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module CLI ( parseOpts ) where
 
 import           Config
 import           Options.Applicative
 import           Control.Monad.IO.Class
+import qualified Data.Map               as Map
+import           Data.Map               ( Map )
 
 parseOpts :: MonadIO m => m Command
 parseOpts = execParserWithDefaults desc pCommand
@@ -19,7 +23,6 @@ pCCmdMakePortable :: Parser CCmdMakePortable
 pCCmdMakePortable = CCmdMakePortable <$> pCTraverser
                                      <*> pCScheduler
                                      <*> pCTranscoder
-                                     <*> pCFFmpeg
                                      <*> pCHasher
                                      <*> pCConcurrentLogger
                                      <*> pCLibrary
@@ -36,17 +39,37 @@ pCTraverser = CTraverser <$> many (option str (long "skip-dir"))
 
 pCScheduler :: Parser CScheduler
 pCScheduler = CScheduler <$> optional pJobs <*> pure 1
-  where pJobs = option auto (long "jobs" <> help "concurrent jobs to run")
+  where pJobs = option auto $  long "jobs"
+                            <> help "concurrent CPU-bound jobs to run (defaults to number of cores)"
 
 pCTranscoder :: Parser CTranscoder
-pCTranscoder = CTranscoder <$> pure []
-
-pCFFmpeg :: Parser CFFmpeg
-pCFFmpeg = CFFmpeg <$> so (long "hash-tag" <> help "" <> value "MedlibOriginalHashBlake3")
-                   <*> so (modExe "ffmpeg")
-                   <*> so (modExe "ffprobe")
-                   <*> so (long "quality" <> help "FFmpeg -q:a audio quality value")
+pCTranscoder = CTranscoder <$> so (long "hash-tag" <> help "" <> value "MedlibOriginalHashBlake3")
+                           <*> so (modExe "ffmpeg")
+                           <*> so (modExe "ffprobe")
+                           <*> pCTranscoderMapping
   where so = option str
+
+pCTranscoderMapping :: Parser (Map String CTranscoderMapping)
+pCTranscoderMapping = Map.fromList <$> many pMapStr
+  where
+    pMapStr :: Parser (String, CTranscoderMapping)
+    pMapStr = option (maybeReader readMapStr)
+                $  long "transcode"
+                <> help "transcode mapping (format: fromExt:toExt:quality)"
+    readMapStr :: String -> Maybe (String, CTranscoderMapping)
+    readMapStr s =
+        let fields = splitBySep ':' s
+         in if   length fields /= 3
+            then Nothing
+            else let extension = fields !! 1
+                     quality   = fields !! 2
+                  in Just (fields !! 0, CTranscoderMapping{..})
+
+-- | how is this not in prelude
+splitBySep :: Eq a => a -> [a] -> [[a]]
+splitBySep sep = go
+  where go [] = []
+        go l = h : splitBySep sep (drop 1 t) where (h, t) = span (/= sep) l
 
 pCHasher :: Parser CHasher
 pCHasher = CHasher <$> option str (modExe' "hasher" "b3sum")

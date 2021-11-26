@@ -1,6 +1,7 @@
 module Config where
 
 import           GHC.Generics
+import           Data.Map       ( Map )
 
 data Command
   = CmdMakePortable CCmdMakePortable
@@ -9,8 +10,7 @@ data Command
 data CCmdMakePortable = CCmdMakePortable
   { cCmdMakePortableCTraverser :: CTraverser
   , cCmdMakePortableCScheduler :: CScheduler
-  , cCmdMakePortableCTranscoder :: CTranscoder
-  , cCmdMakePortableCFFmpeg :: CFFmpeg
+  , cTranscoder :: CTranscoder
   , cCmdMakePortableCHasher :: CHasher
   , cCmdMakePortableCConcurrentLogger :: CConcurrentLogger
   , cCmdMakePortableCLibrarySrc :: CLibrary
@@ -31,14 +31,15 @@ data CScheduler = CScheduler
   } deriving (Eq, Show)
 
 data CTranscoder = CTranscoder
-  { cTranscoderExtPairs :: [(String, String)]
+  { hashTag  :: String
+  , ffmpeg   :: String
+  , ffprobe  :: String
+  , mappings :: Map String CTranscoderMapping
   } deriving (Eq, Show)
 
-data CFFmpeg = CFFmpeg
-  { cFFmpegHashTag :: String
-  , cFFmpegFFmpeg  :: String
-  , cFFmpegFFprobe :: String
-  , cFFmpegQuality :: String
+data CTranscoderMapping = CTranscoderMapping
+  { extension :: String
+  , quality   :: String
   } deriving (Eq, Show)
 
 data CHasher = CHasher

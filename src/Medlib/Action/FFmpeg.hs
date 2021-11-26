@@ -19,7 +19,6 @@ data Cfg = Cfg
   , cfgHasher      :: String
   , cfgFFprobe     :: String
   , cfgFFmpeg      :: String
-  , cfgQuality     :: String
   }
 
 -- | Given the filename of a track, and the filename of a track generated from
@@ -38,8 +37,8 @@ compareStoredHash cfg fOrigTrack fGenTrack = do
     err ec attemptedAction =
         return $ Left $ "error code " <> show ec <> " while " <> attemptedAction
 
-hashAndTranscode :: MonadIO m => Cfg -> FPF -> FPF -> m (Maybe String)
-hashAndTranscode cfg fIn fOut = do
+hashAndTranscode :: MonadIO m => Cfg -> String -> FPF -> FPF -> m (Maybe String)
+hashAndTranscode cfg quality fIn fOut = do
     hashFile (cfgHasher cfg) fIn >>= \case
       Left ec -> err ec "hashing original track"
       Right originalHash -> do
@@ -50,7 +49,7 @@ hashAndTranscode cfg fIn fOut = do
     err ec attemptedAction =
         return $ Just $ "error code " <> show ec <> " while " <> attemptedAction
     ffmpegArgs hash =
-        [ "-n", "-i", fIn, "-vn", "-q:a", cfgQuality cfg
+        [ "-n", "-i", fIn, "-vn", "-q:a", quality
         , "-metadata", cfgHashTagName cfg<>"="<>hash
         , fOut ]
 

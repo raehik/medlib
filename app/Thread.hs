@@ -39,6 +39,8 @@ import qualified System.FilePath                as FilePath
 import           System.FilePath                ( (</>) )
 import           Data.Function                  ( (&) )
 
+import           System.Console.Regions
+
 data Job = Job
   { jobAction    :: IO (Maybe String)
   , jobWriteFile :: (FilePath, FilePath)
@@ -149,15 +151,19 @@ scheduler numSlots q reportDone = go Map.empty
 
 -- TODO use cfg
 status :: MonadIO m => CConcurrentLogger -> TQueue MedlibMap.Update -> m ()
-status _ q = go MapStatus.statusDef
+status _ q = liftIO $ displayConsoleRegions $ do
+    cr <- liftIO $ openConsoleRegion Linear
+    go cr MapStatus.statusDef
   where
-    go s = case MapStatus.indicatesFinished s of
-             True  -> return ()
+    go cr s = case MapStatus.indicatesFinished s of
+             True  -> liftIO $ finishConsoleRegion cr $ show' s
              False -> do
                upd <- stm $ readTQueue q
                let s' = MapStatus.processUpdate s upd
-               liftIO $ print s'
-               go s'
+               --liftIO $ print s'
+               liftIO $ setConsoleRegion cr $ show' s'
+               go cr s'
+    show' = MapStatus.showStatusEachSlot
 
 -- | Determine the job to run for the given library file.
 --
@@ -176,21 +182,21 @@ status _ q = go MapStatus.statusDef
 determineJob :: MonadIO m => CCmdMakePortable -> (FilePath, FilePath) -> m Job
 determineJob cfg fp@(fpd, fpf) = do
     case FilePath.takeExtension fpf of
-      '.':ext -> case Map.lookup ext transcodeExts of
-                   Nothing    -> determineJobCp
-                   Just extTo -> determineJobTranscode extTo
+      '.':ext -> case Map.lookup ext (cfg & cTranscoder & mappings) of
+                   Nothing      -> determineJobCp
+                   Just mapping -> determineJobTranscode mapping
       _       -> determineJobCp
   where
-    determineJobTranscode extTo = do
-        let fpfDest = FilePath.replaceExtension fpf ('.':extTo)
-        let fDest = rootDest </> fpd </> fpfDest
+    determineJobTranscode mapping = do
+        let fpfDest = FilePath.replaceExtension fpf ('.':extension mapping)
+            fDest = rootDest </> fpd </> fpfDest
         liftIO (Dir.doesFileExist fDest) >>= \case
           True  -> return $ Job { jobAction    = jobCompareStoredHash fDest
                                 , jobWriteFile = (fpd, fpfDest)
                                 , jobSrc       = fp
                                 , jobPool      = MedlibMap.ResourceBoundCPU
                                 , jobType      = MedlibMap.OpCompareStoredHash }
-          False -> return $ Job { jobAction    = jobTranscode fDest
+          False -> return $ Job { jobAction    = jobTranscode (quality mapping) fDest
                                 , jobWriteFile = (fpd, fpfDest)
                                 , jobSrc       = fp
                                 , jobPool      = MedlibMap.ResourceBoundCPU
@@ -211,9 +217,6 @@ determineJob cfg fp@(fpd, fpf) = do
     rootSrc  = cfg & cCmdMakePortableCLibrarySrc  & cLibraryRoot
     rootDest = cfg & cCmdMakePortableCLibraryDest & cLibraryRoot
     hasher   = cfg & cCmdMakePortableCHasher & cHasherExe
-    transcodeExts =
-        let pairs = cfg & cCmdMakePortableCTranscoder & cTranscoderExtPairs
-         in Map.fromList pairs
     fSrc  = rootSrc  </> fpd </> fpf
     jobCp fDest = do
         Dir.copyFile fSrc fDest
@@ -226,7 +229,7 @@ determineJob cfg fp@(fpd, fpf) = do
                                      then Nothing
                                      else Just $  "hashes didn't match: "
                                                <> List.intercalate ", " fs
-    jobTranscode fDest = ActFFmpeg.hashAndTranscode ffmpegCfg fSrc fDest
+    jobTranscode quality fDest = ActFFmpeg.hashAndTranscode ffmpegCfg quality fSrc fDest
     jobCompareStoredHash fDest = do
         ActFFmpeg.compareStoredHash ffmpegCfg fSrc fDest >>= \case
           Left  errStr  -> return $ Just errStr
@@ -235,16 +238,15 @@ determineJob cfg fp@(fpd, fpf) = do
             then return Nothing
             else return $ Just $  "stored hash in "        <> fDest
                                <> " didn't match hash of " <> fSrc
-    ffmpegCfg = aFFmpegCfg (cfg & cCmdMakePortableCFFmpeg) (cfg & cCmdMakePortableCHasher)
+    ffmpegCfg = aFFmpegCfg (cTranscoder cfg) (cfg & cCmdMakePortableCHasher)
 
-aFFmpegCfg :: CFFmpeg -> CHasher -> ActFFmpeg.Cfg
-aFFmpegCfg cFFmpeg cHasher = ActFFmpeg.Cfg
-  { ActFFmpeg.cfgHashTagName = cFFmpegHashTag cFFmpeg
-  , ActFFmpeg.cfgHasher      = cHasherExe     cHasher
-  , ActFFmpeg.cfgFFprobe     = cFFmpegFFprobe cFFmpeg
-  , ActFFmpeg.cfgFFmpeg      = cFFmpegFFmpeg  cFFmpeg
-  , ActFFmpeg.cfgQuality     = cFFmpegQuality cFFmpeg
-  }
+aFFmpegCfg :: CTranscoder -> CHasher -> ActFFmpeg.Cfg
+aFFmpegCfg cTranscoder cHasher =
+    ActFFmpeg.Cfg { ActFFmpeg.cfgHasher      = cHasherExe cHasher
+                  , ActFFmpeg.cfgHashTagName = hashTag cTranscoder
+                  , ActFFmpeg.cfgFFprobe     = ffprobe cTranscoder
+                  , ActFFmpeg.cfgFFmpeg      = ffmpeg  cTranscoder
+                  }
 
 -- | Get the smallest integer x where x >= 1 and x is not in the given set. The
 --   set must only have members >= 1.

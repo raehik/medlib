@@ -48,8 +48,9 @@ poolLabel = \case
 
 -- TODO explicit CPU/IO ordering please
 showStatusEachSlot :: Status -> String
-showStatusEachSlot s =
-    unlines poolSlotListDisplay <> "\n" <> unlines poolJobCounts
+showStatusEachSlot s = List.intercalate "\n" poolSlotListDisplay
+                       <> "\n\n"
+                       <> List.intercalate "\n" poolJobCounts
   where
     poolSlotListDisplay =
         pools s
@@ -72,6 +73,8 @@ showStatusEachSlot s =
 
 --------------------------------------------------------------------------------
 
+-- TODO I'm cheating and using SlotIdle to indicate a complete job. If that gets
+-- awkward, I should add another slot status - not a kludge, would be useful!
 processUpdate :: Status -> Update -> Status
 processUpdate s = \case
   UpdateFullyTraversed  -> set (the @"fullyTraversed") True s
@@ -80,9 +83,14 @@ processUpdate s = \case
       PoolUpdateClosed -> updatePoolInStatus p $ set (the @"closed") True
       PoolUpdateQueued -> updatePoolInStatus p $ over (the @"scheduledJobs") (+1)
       PoolUpdateSlot slotId ss ->
-        updatePoolInStatus p $ over (the @"slots") $ Map.insert slotId ss
+        let s' = case ss of
+                   SlotIdle -> -- slot gone idle => job complete!
+                     updatePoolInStatus p $ over (the @"completedJobs") (+1)
+                   _ -> s
+         in updatePoolInStatus' s' p $ over (the @"slots") $ Map.insert slotId ss
   where
-    updatePoolInStatus p f = over (the @"pools") (tryUpdatePoolInner p f) s
+    updatePoolInStatus = updatePoolInStatus' s
+    updatePoolInStatus' s' p f = over (the @"pools") (tryUpdatePoolInner p f) s'
     tryUpdatePoolInner p f = Map.insertWith (\_ p' -> f p') p (f poolStatusDef)
     poolStatusDef = PoolStatus 0 0 False Map.empty
 
