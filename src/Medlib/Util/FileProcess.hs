@@ -6,7 +6,6 @@ module Medlib.Util.FileProcess
 
 import           Medlib.Util.Process
 
-import           Data.Function
 import           Control.Monad.IO.Class
 import qualified Data.Text               as Text
 import           Data.Text               ( Text )
@@ -39,7 +38,7 @@ compareFileHashes hasher fs =
     hashFiles hasher fs >>= \case
       Left  ec     -> return $ Left $  "error code " <> show ec
                                     <> " while hashing filelist"
-      Right hashes -> return $ Right $ listEqHead (map snd hashes)
+      Right hashes -> return $ Right $ listEqHead (map fst hashes)
 
 listEqHead :: Eq a => [a] -> Bool
 listEqHead []     = True

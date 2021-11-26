@@ -44,7 +44,7 @@ opID = \case
 poolLabel :: ResourceBound -> String
 poolLabel = \case
   ResourceBoundCPU -> "CPU"
-  ResourceBoundIO -> "IO "
+  ResourceBoundIO  -> "IO "
 
 -- TODO explicit CPU/IO ordering please
 showStatusEachSlot :: Status -> String

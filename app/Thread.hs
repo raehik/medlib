@@ -7,6 +7,8 @@ it asks for a slot and then can write its own updates!
 TODO I do the above now. But I still use Job. Bit silly.
 -}
 
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Thread where
 
 import qualified Medlib.Map                     as MedlibMap
@@ -18,9 +20,12 @@ import           Util
 
 import           Control.Monad.IO.Class
 import           Control.Monad.STM
+import           Control.Concurrent             ( threadDelay )
 import           Control.Concurrent.STM.TQueue
 import           Control.Concurrent.STM.TMQueue
 import           Control.Concurrent.Async
+
+import           Control.Exception
 
 import qualified Data.List                      as List
 import qualified Data.Map                       as Map
@@ -52,11 +57,16 @@ delegator cfg qFiles qStatus = do
     (qIO,  tIO)  <- createPool MedlibMap.ResourceBoundIO  1
     delegate cfg qFiles qStatus qCPU qIO
     report MedlibMap.UpdateFullyTraversed
+    stm $ closeTMQueue qCPU
+    stm $ closeTMQueue qIO
+    liftIO $ wait tCPU
+    liftIO $ wait tIO
   where
     report = stm . writeTQueue qStatus
     createPool p n = do
+        let reportDone = stm $ writeTQueue qStatus $ MedlibMap.UpdatePool p MedlibMap.PoolUpdateClosed
         q <- liftIO newTMQueueIO
-        a <- liftIO $ async $ scheduler n q
+        a <- liftIO $ async $ scheduler n q reportDone
         return (q, a)
 
 delegate
@@ -76,7 +86,6 @@ delegate cfg qFiles qStatus qCPU qIO = nextFile
             poolQueue = case pool of
                           MedlibMap.ResourceBoundCPU -> qCPU
                           MedlibMap.ResourceBoundIO  -> qIO
-        liftIO $ putStrLn $ "create dir: " <> fst (jobWriteFile job)
         liftIO $ Dir.createDirectoryIfMissing True $ rootDest </> fst (jobWriteFile job)
         stm $ writeTMQueue poolQueue job'
         stm $ writeTQueue qStatus $ MedlibMap.UpdatePool pool $ MedlibMap.PoolUpdateQueued
@@ -99,15 +108,18 @@ wrapJob q j fp op p s = do
         let update = MedlibMap.UpdatePool p $ MedlibMap.PoolUpdateSlot s ss
          in liftIO $ atomically $ writeTQueue q update
 
+data Err = ErrJobFailed String
+  deriving          (Eq, Show)
+  deriving anyclass Exception
+
 scheduler
     :: MonadIO m
-    => Int -> TMQueue (Int -> IO (Maybe String))
+    => Int -> TMQueue (Int -> IO (Maybe String)) -> IO ()
     -> m ()
-scheduler numSlots q = go Map.empty
+scheduler numSlots q reportDone = go Map.empty
   where
     go threads = do
         stm (readTMQueue q) >>= \case
-          Nothing  -> return ()
           Just job -> do
             (threads', slot) <- do
                 if   Map.size threads >= numSlots
@@ -115,15 +127,22 @@ scheduler numSlots q = go Map.empty
                 else return (threads, minNotIn (Set.fromList (Map.elems threads)))
             thread <- liftIO $ async $ job slot
             go $ Map.insert thread slot threads
+          Nothing  -> do
+            waitAllMap threads
+            liftIO reportDone
     -- | 'waitAny' on the keys of an async map, delete the winner from the map
     --   and return its value.
     --
     -- Note that 'waitAny' should return the earliest completed async.
+    --
+    -- TODO ALSO THROWS AN EXECEPTION IF A HANDLED ERROR WAS RETURNED
     waitAnyMap m = do
-        (a, _) <- liftIO $ waitAny $ Map.keys m
+        (a, mErr) <- liftIO $ waitAny $ Map.keys m
         let Just v = Map.lookup a m -- safe, no choice due to waitAny
             m'     = Map.delete a m
-        return (m', v)
+        case mErr of
+          Nothing     -> return (m', v)
+          Just errStr -> liftIO $ throwIO $ ErrJobFailed errStr
     -- | Wait for all asyncs in a map to finish.
     waitAllMap m | Map.null m = return ()
                  | otherwise  = waitAnyMap m >>= \(m', _) -> waitAllMap m'
