@@ -27,8 +27,8 @@ great potential speedup by executing jobs concurrently.
 BLAKE3's `b3sum` appears to have great parallelism, so adding concurrency
 doesn't save us anything there, though does possibly square the number of
 threads. Wonder if I could expand the pool concept? Wonder what existing
-libraries and code similar to mine do that the face of trying to apply
-concurrency to mixed parallelism.
+libraries and code similar to mine do when trying to apply concurrency to mixed
+parallelism.
 
 ## License
 Provided under the MIT license. Please see `LICENSE` for the full license text.
