@@ -3,6 +3,7 @@
 module CLI ( parseOpts ) where
 
 import           Config
+import qualified Medlib.Util.String     as Util
 import           Options.Applicative
 import           Control.Monad.IO.Class
 import qualified Data.Map               as Map
@@ -35,12 +36,12 @@ pCLibrary' :: String -> Parser CLibrary
 pCLibrary' tag = CLibrary <$> option str (long (tag<>"-library") <> help (tag<>" library root"))
 
 pCTraverser :: Parser CTraverser
-pCTraverser = CTraverser <$> many (option str (long "skip-dir"))
+pCTraverser = CTraverser <$> many (option str (long "skip-dir" <> help "directory to skip while traversing library"))
 
 pCScheduler :: Parser CScheduler
 pCScheduler = CScheduler <$> optional pJobs <*> pure 1
   where pJobs = option auto $  long "jobs"
-                            <> help "concurrent CPU-bound jobs to run (defaults to number of cores)"
+                            <> help "concurrent CPU-bound jobs to run (defaults to number of threads given to Haskell runtime)"
 
 pCTranscoder :: Parser CTranscoder
 pCTranscoder = CTranscoder <$> so (long "hash-tag" <> help "" <> value "MedlibOriginalHashBlake3")
@@ -58,18 +59,12 @@ pCTranscoderMapping = Map.fromList <$> many pMapStr
                 <> help "transcode mapping (format: fromExt:toExt:quality)"
     readMapStr :: String -> Maybe (String, CTranscoderMapping)
     readMapStr s =
-        let fields = splitBySep ':' s
+        let fields = Util.splitBySep ':' s
          in if   length fields /= 3
             then Nothing
             else let extension = fields !! 1
                      quality   = fields !! 2
                   in Just (fields !! 0, CTranscoderMapping{..})
-
--- | how is this not in prelude
-splitBySep :: Eq a => a -> [a] -> [[a]]
-splitBySep sep = go
-  where go [] = []
-        go l = h : splitBySep sep (drop 1 t) where (h, t) = span (/= sep) l
 
 pCHasher :: Parser CHasher
 pCHasher = CHasher <$> option str (modExe' "hasher" "b3sum")

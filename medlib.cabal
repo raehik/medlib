@@ -19,6 +19,7 @@ library
       Medlib.Util.File
       Medlib.Util.FileProcess
       Medlib.Util.Process
+      Medlib.Util.String
   other-modules:
       Paths_medlib
   hs-source-dirs:
@@ -71,7 +72,6 @@ executable medlib
   main-is: Main.hs
   other-modules:
       CLI
-      CLI2
       Config
       Thread
       Util

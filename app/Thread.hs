@@ -52,11 +52,12 @@ data Job = Job
 -- TODO use cfg
 delegator
     :: MonadIO m
-    => CCmdMakePortable -> TMQueue (FilePath, FilePath) -> TQueue MedlibMap.Update
+    => CCmdMakePortable -> (MedlibMap.ResourceBound -> Int)
+    -> TMQueue (FilePath, FilePath) -> TQueue MedlibMap.Update
     -> m ()
-delegator cfg qFiles qStatus = do
-    (qCPU, tCPU) <- createPool MedlibMap.ResourceBoundCPU 1
-    (qIO,  tIO)  <- createPool MedlibMap.ResourceBoundIO  1
+delegator cfg getPoolSize qFiles qStatus = do
+    (qCPU, tCPU) <- createPool MedlibMap.ResourceBoundCPU
+    (qIO,  tIO)  <- createPool MedlibMap.ResourceBoundIO
     delegate cfg qFiles qStatus qCPU qIO
     report MedlibMap.UpdateFullyTraversed
     stm $ closeTMQueue qCPU
@@ -65,10 +66,11 @@ delegator cfg qFiles qStatus = do
     liftIO $ wait tIO
   where
     report = stm . writeTQueue qStatus
-    createPool p n = do
-        let reportDone = stm $ writeTQueue qStatus $ MedlibMap.UpdatePool p MedlibMap.PoolUpdateClosed
+    createPool p = do
+        let poolSize   = getPoolSize p
+            reportDone = stm $ writeTQueue qStatus $ MedlibMap.UpdatePool p MedlibMap.PoolUpdateClosed
         q <- liftIO newTMQueueIO
-        a <- liftIO $ async $ scheduler n q reportDone
+        a <- liftIO $ async $ scheduler poolSize q reportDone
         return (q, a)
 
 delegate
@@ -82,6 +84,7 @@ delegate cfg qFiles qStatus qCPU qIO = nextFile
                  Nothing -> return ()
                  Just fp -> delegateFile fp
     delegateFile fp@(fpd, fpf) = do
+        -- TODO remove job indirection, do wrapping etc in determineJob
         job <- determineJob cfg fp
         let pool = jobPool job
             job' = wrapJob qStatus (jobAction job) (fpd </> fpf) (jobType job) pool
@@ -93,7 +96,6 @@ delegate cfg qFiles qStatus qCPU qIO = nextFile
         stm $ writeTQueue qStatus $ MedlibMap.UpdatePool pool $ MedlibMap.PoolUpdateQueued
         nextFile
     rootDest = cfg & cCmdMakePortableCLibraryDest & cLibraryRoot
-
 
 -- TODO curry issues with MonadIO...
 wrapJob
@@ -128,7 +130,7 @@ scheduler numSlots q reportDone = go Map.empty
                 then waitAnyMap threads
                 else return (threads, minNotIn (Set.fromList (Map.elems threads)))
             thread <- liftIO $ async $ job slot
-            go $ Map.insert thread slot threads
+            go $ Map.insert thread slot threads'
           Nothing  -> do
             waitAllMap threads
             liftIO reportDone
@@ -156,13 +158,12 @@ status _ q = liftIO $ displayConsoleRegions $ do
     go cr MapStatus.statusDef
   where
     go cr s = case MapStatus.indicatesFinished s of
-             True  -> liftIO $ finishConsoleRegion cr $ show' s
-             False -> do
-               upd <- stm $ readTQueue q
-               let s' = MapStatus.processUpdate s upd
-               --liftIO $ print s'
-               liftIO $ setConsoleRegion cr $ show' s'
-               go cr s'
+                True  -> liftIO $ finishConsoleRegion cr $ show' s
+                False -> do
+                  upd <- stm $ readTQueue q
+                  let s' = MapStatus.processUpdate s upd
+                  liftIO $ setConsoleRegion cr $ show' s'
+                  go cr s'
     show' = MapStatus.showStatusEachSlot
 
 -- | Determine the job to run for the given library file.
@@ -194,7 +195,7 @@ determineJob cfg fp@(fpd, fpf) = do
           True  -> return $ Job { jobAction    = jobCompareStoredHash fDest
                                 , jobWriteFile = (fpd, fpfDest)
                                 , jobSrc       = fp
-                                , jobPool      = MedlibMap.ResourceBoundCPU
+                                , jobPool      = MedlibMap.ResourceBoundIO
                                 , jobType      = MedlibMap.OpCompareStoredHash }
           False -> return $ Job { jobAction    = jobTranscode (quality mapping) fDest
                                 , jobWriteFile = (fpd, fpfDest)
@@ -207,7 +208,7 @@ determineJob cfg fp@(fpd, fpf) = do
           True  -> return $ Job { jobAction    = jobCompareHashes fDest
                                 , jobWriteFile = fp
                                 , jobSrc       = fp
-                                , jobPool      = MedlibMap.ResourceBoundCPU
+                                , jobPool      = MedlibMap.ResourceBoundIO
                                 , jobType      = MedlibMap.OpCompareHashes }
           False -> return $ Job { jobAction    = jobCp fDest
                                 , jobWriteFile = fp
@@ -217,7 +218,7 @@ determineJob cfg fp@(fpd, fpf) = do
     rootSrc  = cfg & cCmdMakePortableCLibrarySrc  & cLibraryRoot
     rootDest = cfg & cCmdMakePortableCLibraryDest & cLibraryRoot
     hasher   = cfg & cCmdMakePortableCHasher & cHasherExe
-    fSrc  = rootSrc  </> fpd </> fpf
+    fSrc = rootSrc </> fpd </> fpf
     jobCp fDest = do
         Dir.copyFile fSrc fDest
         return Nothing

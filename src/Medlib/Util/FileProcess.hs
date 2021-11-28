@@ -27,7 +27,10 @@ hashFiles hasher = \case
   [] -> return $ Right []
   fs -> Either.mapRight (map parseHashLine . Text.lines) <$> readProcToText hasher fs
   where
-    parseHashLine l = let [hash, fname] = Text.words l in (hash, Text.unpack fname)
+    parseHashLine l =
+        -- TODO fname is raw (has spaces at start)
+        let (hash, fname) = Text.span (/= ' ') l
+         in (hash, Text.unpack fname)
 
 -- | Hash a file using the given hash command.
 hashFile :: MonadIO m => FPF -> FPF -> m (Either Int Text)

@@ -9,7 +9,7 @@ data Command
 
 data CCmdMakePortable = CCmdMakePortable
   { cCmdMakePortableCTraverser :: CTraverser
-  , cCmdMakePortableCScheduler :: CScheduler
+  , cScheduler :: CScheduler
   , cTranscoder :: CTranscoder
   , cCmdMakePortableCHasher :: CHasher
   , cCmdMakePortableCConcurrentLogger :: CConcurrentLogger

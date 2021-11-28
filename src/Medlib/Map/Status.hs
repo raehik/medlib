@@ -27,12 +27,12 @@ import           Data.Generics.Product.Any
 statusDef :: Status
 statusDef = Status { fullyTraversed = False, pools = Map.empty }
 
-opVerbing :: Op -> String
-opVerbing = \case
-  OpTranscode         -> "transcoding"
-  OpCompareStoredHash -> "checking transcoded stored hash"
-  OpCopy              -> "copying"
-  OpCompareHashes     -> "checking hashes"
+opVerb :: Op -> String
+opVerb = \case
+  OpTranscode         -> "transcode          "
+  OpCompareStoredHash -> "compare stored hash"
+  OpCopy              -> "copy               "
+  OpCompareHashes     -> "compare hashes     "
 
 opID :: Op -> Char
 opID = \case
@@ -62,8 +62,8 @@ showStatusEachSlot s = List.intercalate "\n" poolSlotListDisplay
         let lhs = poolLabel p <> " " <> show slotId
          in List.intercalate " | " (lhs : displaySlotPart ss)
     displaySlotPart = \case
-      SlotIdle -> ["[nothing to do]"]
-      SlotBusy fp op -> [fp, opVerbing op]
+      SlotIdle -> ["<idle>"]
+      SlotBusy fp op -> [opVerb op, take 100 fp] -- TODO improve!
     poolJobCounts = map poolJobCount $ Map.toList $ pools s
     poolJobCount (p, ps) = poolLabel p <> " " <> displayCounter ps
     displayCounter ps =
