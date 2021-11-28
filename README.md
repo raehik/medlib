@@ -4,7 +4,7 @@ A set of tools for managing an audio media library.
 Intended use is for efficient conversion of a large library storing tracks in
 lossless format with various metadata and extras, to a "portable" version which
 may transcode and skip extras to reduce size. (I store my music in such a
-fashion, and a portable library makes sense since I use an MP3 player a lot.
+fashion, and a portable library makes sense since I use an MP3 player a lot.)
 
 ## Usage
 `stack install`
