@@ -13,10 +13,14 @@ module Thread where
 
 import qualified Medlib.Map                     as MedlibMap
 import qualified Medlib.Map.Status              as MapStatus
-import qualified Medlib.Action.FFmpeg           as ActFFmpeg
+import qualified Medlib.Job.FFmpeg              as JobFFmpeg
+import qualified Medlib.Job.File                as JobFile
 
 import           Config
 import           Util
+
+import           Medlib.Util.String             ( tshow )
+import qualified Data.Text                      as Text
 
 import           Control.Monad.IO.Class
 import           Control.Monad.STM
@@ -27,7 +31,6 @@ import           Control.Concurrent.Async
 
 import           Control.Exception
 
-import qualified Data.List                      as List
 import qualified Data.Map                       as Map
 import           Data.Map                       ( Map )
 import qualified Data.Set                       as Set
@@ -192,12 +195,12 @@ determineJob cfg fp@(fpd, fpf) = do
         let fpfDest = FilePath.replaceExtension fpf ('.':extension mapping)
             fDest = rootDest </> fpd </> fpfDest
         liftIO (Dir.doesFileExist fDest) >>= \case
-          True  -> return $ Job { jobAction    = jobCompareStoredHash fDest
+          True  -> return $ Job { jobAction    = jobCompareStoredSize fSrc fDest
                                 , jobWriteFile = (fpd, fpfDest)
                                 , jobSrc       = fp
                                 , jobPool      = MedlibMap.ResourceBoundIO
-                                , jobType      = MedlibMap.OpCompareStoredHash }
-          False -> return $ Job { jobAction    = jobTranscode (quality mapping) fDest
+                                , jobType      = MedlibMap.OpCompareStoredSize }
+          False -> return $ Job { jobAction    = jobTranscodeHash (quality mapping) fDest
                                 , jobWriteFile = (fpd, fpfDest)
                                 , jobSrc       = fp
                                 , jobPool      = MedlibMap.ResourceBoundCPU
@@ -205,12 +208,12 @@ determineJob cfg fp@(fpd, fpf) = do
     determineJobCp = do
         let fDest = rootDest </> fpd </> fpf
         liftIO (Dir.doesFileExist fDest) >>= \case
-          True  -> return $ Job { jobAction    = jobCompareHashes fDest
+          True  -> return $ Job { jobAction    = JobFile.compareSizes fSrc [fDest] -- JobFile.compareHashes hasher fSrc fDest
                                 , jobWriteFile = fp
                                 , jobSrc       = fp
                                 , jobPool      = MedlibMap.ResourceBoundIO
-                                , jobType      = MedlibMap.OpCompareHashes }
-          False -> return $ Job { jobAction    = jobCp fDest
+                                , jobType      = MedlibMap.OpCompareSizes }
+          False -> return $ Job { jobAction    = JobFile.cp fSrc fDest
                                 , jobWriteFile = fp
                                 , jobSrc       = fp
                                 , jobPool      = MedlibMap.ResourceBoundIO
@@ -219,20 +222,15 @@ determineJob cfg fp@(fpd, fpf) = do
     rootDest = cfg & cCmdMakePortableCLibraryDest & cLibraryRoot
     hasher   = cfg & cCmdMakePortableCHasher & cHasherExe
     fSrc = rootSrc </> fpd </> fpf
-    jobCp fDest = do
-        Dir.copyFile fSrc fDest
-        return Nothing
-    jobCompareHashes fDest = do
-        let fs = [fSrc, fDest]
-        FileProcess.compareFileHashes hasher fs >>= \case
-          Left  errStr   -> return $ Just errStr
-          Right success  -> return $ if   success
-                                     then Nothing
-                                     else Just $  "hashes didn't match: "
-                                               <> List.intercalate ", " fs
-    jobTranscode quality fDest = ActFFmpeg.hashAndTranscode ffmpegCfg quality fSrc fDest
+    jobTranscodeHash quality fDest = JobFFmpeg.transcodeStoreOrigHash ffmpegCfg quality fSrc fDest
+    jobTranscodeSize quality fDest =
+        JobFFmpeg.transcodeStoreOrigSize
+            (JobFFmpeg.cfgFFmpeg ffmpegCfg)
+            quality
+            "MedlibOriginalByteCount"
+            fSrc fDest
     jobCompareStoredHash fDest = do
-        ActFFmpeg.compareStoredHash ffmpegCfg fSrc fDest >>= \case
+        JobFFmpeg.compareStoredHash ffmpegCfg fSrc fDest >>= \case
           Left  errStr  -> return $ Just errStr
           Right success ->
             if success
@@ -240,13 +238,23 @@ determineJob cfg fp@(fpd, fpf) = do
             else return $ Just $  "stored hash in "        <> fDest
                                <> " didn't match hash of " <> fSrc
     ffmpegCfg = aFFmpegCfg (cTranscoder cfg) (cfg & cCmdMakePortableCHasher)
+    jobCompareStoredSize fSrc fDest =
+        JobFFmpeg.compareStoredSize
+            (JobFFmpeg.cfgFFprobe ffmpegCfg)
+            "MedlibOriginalByteCount"
+            fSrc fDest >>= \case
+          Left  errStr  -> return $ Just errStr
+          Right success -> if success
+                           then return Nothing
+                           else return $ Just $  "stored size in "        <> fDest
+                                              <> " didn't match size of " <> fSrc
 
-aFFmpegCfg :: CTranscoder -> CHasher -> ActFFmpeg.Cfg
+aFFmpegCfg :: CTranscoder -> CHasher -> JobFFmpeg.Cfg
 aFFmpegCfg cTranscoder cHasher =
-    ActFFmpeg.Cfg { ActFFmpeg.cfgHasher      = cHasherExe cHasher
-                  , ActFFmpeg.cfgHashTagName = hashTag cTranscoder
-                  , ActFFmpeg.cfgFFprobe     = ffprobe cTranscoder
-                  , ActFFmpeg.cfgFFmpeg      = ffmpeg  cTranscoder
+    JobFFmpeg.Cfg { JobFFmpeg.cfgHasher      = cHasherExe cHasher
+                  , JobFFmpeg.cfgHashTagName = hashTag cTranscoder
+                  , JobFFmpeg.cfgFFprobe     = ffprobe cTranscoder
+                  , JobFFmpeg.cfgFFmpeg      = ffmpeg  cTranscoder
                   }
 
 -- | Get the smallest integer x where x >= 1 and x is not in the given set. The

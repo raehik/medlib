@@ -1,5 +1,8 @@
 module Medlib.Util.String where
 
+import qualified Data.Text as Text
+import           Data.Text    ( Text )
+
 -- | how is this not in prelude
 splitBySep :: Eq a => a -> [a] -> [[a]]
 splitBySep sep = go
@@ -20,3 +23,6 @@ fitFile prefixLen aimLen s =
   where
     prefix = 
 -}
+
+tshow :: Show a => a -> Text
+tshow = Text.pack . show

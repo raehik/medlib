@@ -48,6 +48,7 @@ dependencies:
 - reflection
 - either
 - unliftio
+- unix-compat
 
 ghc-options:
 - -Wall

@@ -64,8 +64,10 @@ data SlotStatus
 data Op
   = OpTranscode
   | OpCompareStoredHash
+  | OpCompareStoredSize
   | OpCopy
   | OpCompareHashes
+  | OpCompareSizes
     deriving (Eq, Show, Generic, Ord)
 
 --------------------------------------------------------------------------------

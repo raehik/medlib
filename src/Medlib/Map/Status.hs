@@ -31,15 +31,19 @@ opVerb :: Op -> String
 opVerb = \case
   OpTranscode         -> "transcode          "
   OpCompareStoredHash -> "compare stored hash"
+  OpCompareStoredSize -> "compare stored size"
   OpCopy              -> "copy               "
   OpCompareHashes     -> "compare hashes     "
+  OpCompareSizes      -> "compare sizes      "
 
 opID :: Op -> Char
 opID = \case
   OpTranscode         -> 'T'
   OpCompareStoredHash -> 'H'
+  OpCompareStoredSize -> 'S'
   OpCopy              -> 'C'
   OpCompareHashes     -> 'H'
+  OpCompareSizes      -> 'S'
 
 poolLabel :: ResourceBound -> String
 poolLabel = \case

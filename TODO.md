@@ -8,3 +8,6 @@
     freaking efficient!!)
     * So, shift jobs around. Sucks looooool
     * Shifted -- but write this down somewhere.
+  * Use xxHash instead of b3sum, it's even faster
+  * Use a sample-based hasher
+  * Check files via metadata (bytesize) instead of hash -- zoom.

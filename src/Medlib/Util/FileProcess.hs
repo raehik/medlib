@@ -2,14 +2,17 @@ module Medlib.Util.FileProcess
   ( hashFiles
   , hashFile
   , compareFileHashes
+  , getFileSize
   ) where
 
 import           Medlib.Util.Process
+import           Medlib.Util.String
 
 import           Control.Monad.IO.Class
-import qualified Data.Text               as Text
-import           Data.Text               ( Text )
-import qualified Data.Either.Combinators as Either
+import qualified Data.Text                as Text
+import           Data.Text                ( Text )
+import qualified Data.Either.Combinators  as Either
+import qualified System.PosixCompat.Files as Posix
 
 type FPF = FilePath
 
@@ -46,3 +49,8 @@ compareFileHashes hasher fs =
 listEqHead :: Eq a => [a] -> Bool
 listEqHead []     = True
 listEqHead (x:xs) = all (== x) xs
+
+getFileSize :: MonadIO m => FilePath -> m Text
+getFileSize fp = do
+    stat <- liftIO $ Posix.getFileStatus fp
+    return $ tshow $ Posix.fileSize stat
