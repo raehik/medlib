@@ -9,5 +9,9 @@
     * So, shift jobs around. Sucks looooool
     * Shifted -- but write this down somewhere.
   * Use xxHash instead of b3sum, it's even faster
-  * Use a sample-based hasher
-  * Check files via metadata (bytesize) instead of hash -- zoom.
+  * Consider a sample-based hasher
+  * Redo transcoding interface
+    * Pass a `Map Text Text` map of tag-value pairs
+    * All tags are auto-prefixed with `Medlib`
+    * Always save a hash and the size
+    * Maybe remove the CLI for now
