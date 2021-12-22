@@ -100,7 +100,6 @@ delegate cfg qFiles qStatus qCPU qIO = nextFile
         nextFile
     rootDest = cfg & cCmdMakePortableCLibraryDest & cLibraryRoot
 
--- TODO curry issues with MonadIO...
 wrapJob
     :: TQueue MedlibMap.Update -> IO a
     -> FilePath -> MedlibMap.Op -> MedlibMap.ResourceBound -> Int
@@ -200,7 +199,7 @@ determineJob cfg fp@(fpd, fpf) = do
                                 , jobSrc       = fp
                                 , jobPool      = MedlibMap.ResourceBoundIO
                                 , jobType      = MedlibMap.OpCompareStoredSize }
-          False -> return $ Job { jobAction    = jobTranscodeHash (quality mapping) fDest
+          False -> return $ Job { jobAction    = jobTranscodeSize (quality mapping) fSrc fDest
                                 , jobWriteFile = (fpd, fpfDest)
                                 , jobSrc       = fp
                                 , jobPool      = MedlibMap.ResourceBoundCPU
@@ -222,8 +221,8 @@ determineJob cfg fp@(fpd, fpf) = do
     rootDest = cfg & cCmdMakePortableCLibraryDest & cLibraryRoot
     hasher   = cfg & cCmdMakePortableCHasher & cHasherExe
     fSrc = rootSrc </> fpd </> fpf
-    jobTranscodeHash quality fDest = JobFFmpeg.transcodeStoreOrigHash ffmpegCfg quality fSrc fDest
-    jobTranscodeSize quality fDest =
+    jobTranscodeHash quality fSrc fDest = JobFFmpeg.transcodeStoreOrigHash ffmpegCfg quality fSrc fDest
+    jobTranscodeSize quality fSrc fDest =
         JobFFmpeg.transcodeStoreOrigSize
             (JobFFmpeg.cfgFFmpeg ffmpegCfg)
             quality

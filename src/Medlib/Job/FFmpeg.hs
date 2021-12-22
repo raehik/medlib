@@ -12,9 +12,15 @@ import           Medlib.Util.FileProcess
 import           Control.Monad.IO.Class
 import qualified Data.Text                      as Text
 import           Data.Text                      ( Text )
+import qualified Data.Map                       as Map
+import           Data.Map                       ( Map )
 import           System.Exit                    ( ExitCode(..) )
 
 import           FP
+
+tagMapAsMetadataArgs :: Map Text Text -> [String]
+tagMapAsMetadataArgs = map (uncurry tagArg) . Map.assocs
+  where tagArg t v = Text.unpack t <> "=" <> Text.unpack v
 
 data Cfg = Cfg
   { cfgHashTagName :: String
