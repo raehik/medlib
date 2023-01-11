@@ -89,7 +89,7 @@ transcodeStoreOrigSize ffmpeg quality tagName fIn fOut = do
 -- | Transcode with some set stuff and a spare tag.
 transcode :: MonadIO m => FPF -> String -> String -> String -> FPF -> FPF -> m ExitCode
 transcode ffmpeg quality tagName tagValue fIn fOut = runProcessSilent ffmpeg args
-  where args = [ "-n", "-i", fIn, "-vn", "-q:a", quality
+  where args = [ "-n", "-i", fIn, "-vn", "-b:a", quality
                , "-metadata", tagName<>"="<>tagValue
                , fOut ]
 
